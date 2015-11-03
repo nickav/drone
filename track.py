@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from scipy import ndimage
+from scipy import spatial
 from IPython import embed
 
 # TODO - camera calibration:
@@ -30,6 +30,7 @@ GRADIENT_KNOWN_WIDTH = 12*12
 def hardlight_contours(image_src, take_first=100):
     img = cv2.imread(image_src, 0) # 0 means grayscale
     # force hard black and white
+    # hardlight with grayscale
     ret, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     # find contours, make sure to copy image otherwise it gets distorted
     (image, cnts, _) = cv2.findContours(img.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -37,7 +38,7 @@ def hardlight_contours(image_src, take_first=100):
 
     return (cnts, img)
 
-# returns an array of tuples (object_code, size (w,h), rectangle)
+# returns (array of tuples (object_code, size (w,h), rectangle), image)
 def identify_objects(image_src):
     (cnts, img) = hardlight_contours(image_src)
     # loop over our contours
@@ -53,31 +54,66 @@ def identify_objects(image_src):
         area = w*h
         if len(approx) == 4 and area > MIN_THRESHOLD and area <= MAX_THRESHOLD:
             norm_img = four_point_transform(img, approx)
+            # hardlight
+            ret, norm_img = cv2.threshold(norm_img, 0, 255, cv2.THRESH_BINARY)
             rect = cv2.boundingRect(norm_img)
             code = get_object_code(norm_img, rect)
             if code > 0:
                 objects.append((code, (rect[2], rect[3]), c_rect))
 
-    return objects
+    return (objects, img)
 
 # known(pixels, dist)
 def locate_xyz(image_src, known, out):
     # debug stuff
     img_color = cv2.imread(image_src)
 
-    objs = identify_objects(image_src)
+    current_x = -1
+    current_y = -1
+
+    # find qr codes in image
+    objs, img = identify_objects(image_src)
+
+    # get center of camera
+    rect = cv2.boundingRect(img)
+    camera_cx = rect[2] / 2
+    camera_cy = rect[3] / 2
+
+    # find closest qr code to origin
+    closest = None
+    dist = -1
+    d = 0
     for o in objs:
         code, size, pos_rect = o
-        x,y,w,h = pos_rect
+
+        d = pr_dist_sq(camera_cx, camera_cy, pos_rect)
+        if (closest is None or d > dist):
+            closest = o
+            dist = d
 
         # debug stuff
-        cv2.rectangle(img_color, (x, y), (x + w, y + h), (0,0,255), 3)
-        cv2.putText(img_color, str(code), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,0,0))
-        cv2.imwrite(out, img_color)
+        #cv2.rectangle(img_color, (x, y), (x + w, y + h), (0,0,255), 3)
+        #cv2.putText(img_color, str(code), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,0,0))
+        #cv2.imwrite(out, img_color)
 
-        y = float(known[0])/float(size[0]) * float(known[1])
-        print y
-        break
+        current_y = float(known[0])/float(size[0]) * float(known[1])
+    
+    print closest
+
+    return (current_x, current_y)
+
+# x = 0, y = 1, w = 2, h = 3
+def rect_center(rect):
+    return (rect[0] + rect[2] / 2, rect[1] + rect[3] / 2)
+
+def pr_dist_sq(x,y,rect):
+    dx = x - (rect[0] + rect[2] / 2)
+    dy = y - (rect[1] + rect[3] / 2)
+    return x*x + y*y
+
+# distance between a point and a rectangle
+#def pr_dist(x,y,rect):
+#    return spatial.distance.cdist([[x, y]], [[rect[0] + rect[2] / 2, rect[1] + rect[3] / 2]], 'euclidean')[0][0]
 
 # find an object's code from a full-sized image object
 # TODO: to make this better, instead of sampling one pixel average a small area within each shape
@@ -162,17 +198,20 @@ def distance_to_camera(knownWidth, focalLength, perWidth):
     return (knownWidth * focalLength) / perWidth
 
 # calibrate
-objects = identify_objects('image/12ft.jpg')
+objects, image = identify_objects('image/12ft.jpg')
 known_dist = 12
 w,h = objects[0][1]
 print "Focal length at", known_dist, "feet is", w, "px"
 print objects
 
-#for i in [2,3,4,6,8,10,12,'6-rot']:
-for i in [12]:
-    #get_contours(src, str(i) + '.jpg')
+for i in [2,3,4,6,8,10,12,'6-rot']:
     src = 'image/' + str(i) + 'ft.jpg'
     out = "out/" + str(i) + '.jpg'
     print "locating", i
-    locate_xyz(src, (w, known_dist), out)
+    locate_xyz(src, (known_dist, w), out)
+
+    #objs, image = identify_objects()
+    #for obj in objs:
+    #    code, size, rect = obj
+    #    center = rect_center(rect)
 
