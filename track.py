@@ -16,30 +16,32 @@ MAX_THRESHOLD = 100000
 SQUARE_WIDTH = 7.5
 SQUARE_N = 5
 SQ_W = SQUARE_WIDTH / SQUARE_N
-KNOWN_DISTANCE = 24
-KNOWN_WIDTH = 7.5
 SQUARE_SPACING = 15
+
+KNOWN_Z = 24
+KNOWN_AREA = 7.5*7.5
 
 # linear gradient config
 #GRADIENT = []
 GRADIENT_KNOWN_WIDTH = 12*12
 
-def get_cont(image, out):
-    img_color = cv2.imread(src)
-    img = cv2.imread(src, 0) # 0 means grayscale
-
+# get hardlight contours of an image
+# returns a tuple of (contours, hardlight_filtered_image)
+def hardlight_contours(image_src, take_first=100):
+    img = cv2.imread(image_src, 0) # 0 means grayscale
     # force hard black and white
     ret, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-    # blur slightly to reduce high frequency noise
-    # doesn't work well
-    #img = cv2.GaussianBlur(img, (3, 3), 0)
-
     # find contours, make sure to copy image otherwise it gets distorted
     (image, cnts, _) = cv2.findContours(img.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    cnts = sorted(cnts, key = cv2.contourArea, reverse = True)[:100]
+    cnts = sorted(cnts, key = cv2.contourArea, reverse = True)[:take_first]
 
+    return (cnts, img)
+
+# returns an array of tuples (object_code, size (w,h), rectangle)
+def identify_objects(image_src):
+    (cnts, img) = hardlight_contours(image_src)
     # loop over our contours
+    objects = []
     for c in cnts:
         # approximate the contour
         peri = cv2.arcLength(c, True)
@@ -47,36 +49,40 @@ def get_cont(image, out):
 
         # if our approximated contour has four points and area is within our range
         #area = cv2.contourArea(approx)
-        x,y,w,h = cv2.boundingRect(c)
+        c_rect = x,y,w,h = cv2.boundingRect(c)
         area = w*h
         if len(approx) == 4 and area > MIN_THRESHOLD and area <= MAX_THRESHOLD:
             norm_img = four_point_transform(img, approx)
-            code = get_object_code(norm_img)
-            print code
+            rect = cv2.boundingRect(norm_img)
+            code = get_object_code(norm_img, rect)
             if code > 0:
-                cx = x + w/2
-                cy = y + h/2
-                cv2.drawContours(img_color, [approx], -1, (0, 255, 0), 3)
-                cv2.rectangle(img_color, (cx, cy), (cx, cy), (0,0,255), 3)
-                cv2.rectangle(img_color, (x,y), (x+w, y+h), (255,0,255), 2)
-                cv2.putText(img_color, str(code), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,0,0))
+                objects.append((code, (rect[2], rect[3]), c_rect))
 
-    cv2.imwrite(out, img_color)
+    return objects
+
+# known(pixels, dist)
+def locate_xyz(image_src, known, out):
+    # debug stuff
+    img_color = cv2.imread(image_src)
+
+    objs = identify_objects(image_src)
+    for o in objs:
+        code, size, pos_rect = o
+        x,y,w,h = pos_rect
+
+        # debug stuff
+        cv2.rectangle(img_color, (x, y), (x + w, y + h), (0,0,255), 3)
+        cv2.putText(img_color, str(code), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,0,0))
+        cv2.imwrite(out, img_color)
+
+        y = float(known[0])/float(size[0]) * float(known[1])
+        print y
+        break
 
 # find an object's code from a full-sized image object
-def get_object_code(image):
-    x,y,w,h = cv2.boundingRect(image)
-    cx = x + w/2
-    cy = y + h/2
-    dx = w/SQUARE_N
-    dy = h/SQUARE_N
-    val = 511 - (binary(image[cy - dy, cx - dx]) * 1 + binary(image[cy - dy, cx]) * 2 + binary(image[cy - dy, cx + dx]) * 4 + \
-           binary(image[cy, cx - dx]) * 8 + binary(image[cy, cx]) * 16 + binary(image[cy, cx + dx]) * 32 + \
-           binary(image[cy + dy, cx - dx]) * 64 + binary(image[cy + dy, cx]) * 128 + binary(image[cy + dy, cx + dx]) * 256)
-    return val if val >= 0 else 0
-
-# @deprecated: give an object, attempts to return it's code
-def get_object_code_from_image(image, x, y, w, h):
+# TODO: to make this better, instead of sampling one pixel average a small area within each shape
+def get_object_code(image, rect):
+    x,y,w,h = rect
     cx = x + w/2
     cy = y + h/2
     dx = w/SQUARE_N
@@ -155,8 +161,18 @@ def order_points(pts):
 def distance_to_camera(knownWidth, focalLength, perWidth):
     return (knownWidth * focalLength) / perWidth
 
-for i in [2,3,4,6,8,10,12, '6-rot']:
+# calibrate
+objects = identify_objects('image/12ft.jpg')
+known_dist = 12
+w,h = objects[0][1]
+print "Focal length at", known_dist, "feet is", w, "px"
+print objects
+
+#for i in [2,3,4,6,8,10,12,'6-rot']:
+for i in [12]:
     #get_contours(src, str(i) + '.jpg')
     src = 'image/' + str(i) + 'ft.jpg'
     out = "out/" + str(i) + '.jpg'
-    get_cont(src, out)
+    print "locating", i
+    locate_xyz(src, (w, known_dist), out)
+
