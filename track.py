@@ -38,10 +38,6 @@ def get_cont(image, out):
     # find contours, make sure to copy image otherwise it gets distorted
     (image, cnts, _) = cv2.findContours(img.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     cnts = sorted(cnts, key = cv2.contourArea, reverse = True)[:100]
-    
-    #cv2.imshow("hi", img)
-    #cv2.waitKey(0)
-    #return
 
     # loop over our contours
     for c in cnts:
@@ -54,23 +50,33 @@ def get_cont(image, out):
         x,y,w,h = cv2.boundingRect(c)
         area = w*h
         if len(approx) == 4 and area > MIN_THRESHOLD and area <= MAX_THRESHOLD:
-            code = get_object_code(img, x, y, w, h)
-            if code != 0:
+            norm_img = four_point_transform(img, approx)
+            code = get_object_code(norm_img)
+            print code
+            if code > 0:
                 cx = x + w/2
                 cy = y + h/2
                 cv2.drawContours(img_color, [approx], -1, (0, 255, 0), 3)
                 cv2.rectangle(img_color, (cx, cy), (cx, cy), (0,0,255), 3)
                 cv2.rectangle(img_color, (x,y), (x+w, y+h), (255,0,255), 2)
                 cv2.putText(img_color, str(code), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,0,0))
-                wraped = four_point_transform(img, approx)
-                cv2.imshow("imge", wraped)
-                cv2.waitKey(0)
-                break
 
     cv2.imwrite(out, img_color)
 
-# give an object, attempts to return it's code
-def get_object_code(image, x, y, w, h):
+# find an object's code from a full-sized image object
+def get_object_code(image):
+    x,y,w,h = cv2.boundingRect(image)
+    cx = x + w/2
+    cy = y + h/2
+    dx = w/SQUARE_N
+    dy = h/SQUARE_N
+    val = 511 - (binary(image[cy - dy, cx - dx]) * 1 + binary(image[cy - dy, cx]) * 2 + binary(image[cy - dy, cx + dx]) * 4 + \
+           binary(image[cy, cx - dx]) * 8 + binary(image[cy, cx]) * 16 + binary(image[cy, cx + dx]) * 32 + \
+           binary(image[cy + dy, cx - dx]) * 64 + binary(image[cy + dy, cx]) * 128 + binary(image[cy + dy, cx + dx]) * 256)
+    return val if val >= 0 else 0
+
+# @deprecated: give an object, attempts to return it's code
+def get_object_code_from_image(image, x, y, w, h):
     cx = x + w/2
     cy = y + h/2
     dx = w/SQUARE_N
@@ -84,6 +90,7 @@ def get_object_code(image, x, y, w, h):
 def binary(val, max_val=255):
     return 0 if val < max_val / 2 else 1
 
+# normalizes an object with coordinates pts on image
 def four_point_transform(image, pts):
     # obtain a consistent order of the points and unpack them individually
     rect = order_points(pts.reshape(4,2))
