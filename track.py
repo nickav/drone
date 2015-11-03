@@ -6,6 +6,7 @@ from IPython import embed
 # TODO - camera calibration:
 # http://opencv-python-tutroals.readthedocs.org/en/latest/py_tutorials/py_calib3d/py_calibration/py_calibration.html
 # http://www.pyimagesearch.com/2015/01/19/find-distance-camera-objectmarker-using-python-opencv/
+# http://www.pyimagesearch.com/2014/09/01/build-kick-ass-mobile-document-scanner-just-5-minutes/
 
 # calculating contour sizes
 MIN_THRESHOLD = 500
@@ -31,12 +32,16 @@ def get_cont(image, out):
     ret, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
     # blur slightly to reduce high frequency noise
-    # no good
-    #thresh = cv2.GaussianBlur(img, (3, 3), 0)
+    # doesn't work well
+    #img = cv2.GaussianBlur(img, (3, 3), 0)
 
-    (image, cnts, _) = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    # find contours, make sure to copy image otherwise it gets distorted
+    (image, cnts, _) = cv2.findContours(img.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     cnts = sorted(cnts, key = cv2.contourArea, reverse = True)[:100]
-    screenCnt = None
+    
+    #cv2.imshow("hi", img)
+    #cv2.waitKey(0)
+    #return
 
     # loop over our contours
     for c in cnts:
@@ -51,7 +56,6 @@ def get_cont(image, out):
         if len(approx) == 4 and area > MIN_THRESHOLD and area <= MAX_THRESHOLD:
             code = get_object_code(img, x, y, w, h)
             if code != 0:
-                print code
                 cx = x + w/2
                 cy = y + h/2
                 cv2.drawContours(img_color, [approx], -1, (0, 255, 0), 3)
@@ -60,6 +64,7 @@ def get_cont(image, out):
                 cv2.putText(img_color, str(code), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,0,0))
                 wraped = four_point_transform(img, approx)
                 cv2.imshow("imge", wraped)
+                cv2.waitKey(0)
                 break
 
     cv2.imwrite(out, img_color)
@@ -70,25 +75,18 @@ def get_object_code(image, x, y, w, h):
     cy = y + h/2
     dx = w/SQUARE_N
     dy = h/SQUARE_N
-    """print image[cy - dy, cx - dx]
-    print image[cy - dy, cx]
-    print image[cy - dy, cx + dx] 
-    print image[cy, cx - dx]
-    print image[cy, cx]
-    print image[cy, cx + dx]
-    print image[cy + dy, cx - dx]
-    print image[cy + dy, cx]
-    print image[cy + dy, cx + dx]"""
-    val = 511 - (image[cy - dy, cx - dx] * 1 + image[cy - dy, cx] * 2 + image[cy - dy, cx + dx] * 4 + \
-           image[cy, cx - dx] * 8 + image[cy, cx] * 16 + image[cy, cx + dx] * 32 + \
-           image[cy + dy, cx - dx] * 64 + image[cy + dy, cx] * 128 + image[cy + dy, cx + dx] * 256)
+    val = 511 - (binary(image[cy - dy, cx - dx]) * 1 + binary(image[cy - dy, cx]) * 2 + binary(image[cy - dy, cx + dx]) * 4 + \
+           binary(image[cy, cx - dx]) * 8 + binary(image[cy, cx]) * 16 + binary(image[cy, cx + dx]) * 32 + \
+           binary(image[cy + dy, cx - dx]) * 64 + binary(image[cy + dy, cx]) * 128 + binary(image[cy + dy, cx + dx]) * 256)
     return val if val >= 0 else 0
+
+# returns either 0 or 1 if val is less than mid of max_val or greater
+def binary(val, max_val=255):
+    return 0 if val < max_val / 2 else 1
 
 def four_point_transform(image, pts):
     # obtain a consistent order of the points and unpack them individually
-    #rect = order_points(pts)
-    rect = pts
-    embed()
+    rect = order_points(pts.reshape(4,2))
     (tl, tr, br, bl) = rect
 
     # compute the width of the new image, which will be the
