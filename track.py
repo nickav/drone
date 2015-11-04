@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import time
 
 # TODO - camera calibration:
 # http://opencv-python-tutroals.readthedocs.org/en/latest/py_tutorials/py_calib3d/py_calibration/py_calibration.html
@@ -11,20 +12,14 @@ MIN_THRESHOLD = 500
 MAX_THRESHOLD = 100000
 
 # square config
-SQUARE_WIDTH = 7.5
 SQUARE_N = 5
-SQ_W = SQUARE_WIDTH / SQUARE_N
-SQUARE_SPACING = 15
-
-KNOWN_Z = 24
-KNOWN_AREA = 7.5*7.5
 
 # linear gradient config
 #GRADIENT = []
 #GRADIENT_KNOWN_WIDTH = 12*12
 
 #(7.5)*((240/sin(20.705 deg)))
-PPI = 5091.1244048
+#PPI = 5091.1244048
 
 # get hardlight contours of an image
 # returns a tuple of (contours, hardlight_filtered_image)
