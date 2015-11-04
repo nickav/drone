@@ -1,5 +1,7 @@
 import numpy as np
 import cv2
+from scipy import spatial
+from IPython import embed
 
 # TODO - camera calibration:
 # http://opencv-python-tutroals.readthedocs.org/en/latest/py_tutorials/py_calib3d/py_calibration/py_calibration.html
@@ -21,10 +23,7 @@ KNOWN_AREA = 7.5*7.5
 
 # linear gradient config
 #GRADIENT = []
-#GRADIENT_KNOWN_WIDTH = 12*12
-
-#(7.5)*((240/sin(20.705 deg)))
-PPI = 5091.1244048
+GRADIENT_KNOWN_WIDTH = 12*12
 
 # get hardlight contours of an image
 # returns a tuple of (contours, hardlight_filtered_image)
@@ -65,7 +64,7 @@ def identify_objects(image_src):
     return (objects, img)
 
 # known(pixels, dist)
-def locate_xy(image_src, known, out):
+def locate_xyz(image_src, known, out):
     # debug stuff
     img_color = cv2.imread(image_src)
 
@@ -98,15 +97,10 @@ def locate_xy(image_src, known, out):
         #cv2.imwrite(out, img_color)
 
         current_y = float(known[0])/float(size[0]) * float(known[1])
-        # 7.5 * (240 / sin(20.705)) / (S_pixel)
-        #current_y = 5091.1244048 / float(size[0])
     
     print closest
-    dx = np.fabs(rect_center(closest[2])[0] - camera_cx)
-    # current_y * dx / (240 / sin(20.705))
 
     return (current_x, current_y)
-#checkyourdongle
 
 # x = 0, y = 1, w = 2, h = 3
 def rect_center(rect):
@@ -116,6 +110,10 @@ def pr_dist_sq(x,y,rect):
     dx = x - (rect[0] + rect[2] / 2)
     dy = y - (rect[1] + rect[3] / 2)
     return x*x + y*y
+
+# distance between a point and a rectangle
+#def pr_dist(x,y,rect):
+#    return spatial.distance.cdist([[x, y]], [[rect[0] + rect[2] / 2, rect[1] + rect[3] / 2]], 'euclidean')[0][0]
 
 # find an object's code from a full-sized image object
 # TODO: to make this better, instead of sampling one pixel average a small area within each shape
@@ -203,10 +201,44 @@ def distance_to_camera(knownWidth, focalLength, perWidth):
 objects, image = identify_objects('image/12ft.jpg')
 known_dist = 12
 w,h = objects[0][1]
-print "Focal length at", known_dist, "feet is", w, "px"
-for i in [2,3,4,6,8,10,12,'6-rot']:
+#print "Focal length at", known_dist, "feet is", w, "px"
+#print objects
+
+# inches
+HEIGHT = 61.25
+object_points = {
+    '23': (0, 0, HEIGHT),
+    '337': (-22.1875, 0, HEIGHT),
+    '322': (-31.1875, 0, HEIGHT),
+    '257': (20.375, 0, HEIGHT),
+    '14': (39.5, 0, HEIGHT),
+}
+
+#for i in [2,3,4,6,8,10,12,'6-rot']:
+for i in [8]:
     src = 'image/' + str(i) + 'ft.jpg'
     out = "out/" + str(i) + '.jpg'
     print "locating", i
-    print locate_xy(src, (known_dist, w), out)
+    #locate_xyz(src, (known_dist, w), out)
+
+    objects, image = identify_objects(src)
+    objs = []
+    imgs = []
+    for obj in objects:
+        code, size, rect = obj
+        center = rect_center(rect)
+
+        point = object_points[str(code)]
+        imgs.append([center])
+        objs.append([point])
+
+    objs = np.array(objs,dtype=np.float)
+    imgs = np.array(imgs,dtype=np.float)
+
+    camera_matrix = np.eye(3)
+    dist_coefs = np.zeros((5,1))
+
+    solve = cv2.solvePnPRansac(objs, imgs, camera_matrix, dist_coefs)
+    print solve
+    break
 
