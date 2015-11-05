@@ -213,12 +213,39 @@ for i in ['setup']:
 # inches
 HEIGHT = 61.25
 object_points = {
-    '23': (0, 0, HEIGHT),
-    '337': (-22.1875, 0, HEIGHT),
-    '322': (-31.1875, 0, HEIGHT),
-    '257': (20.375, 0, HEIGHT),
-    '14': (39.5, 0, HEIGHT),
+# negative
+    '322': (-60.875, 0, 60.625),
+    '257': (-63.875, 0, 23.5),
+    '195': (-39.375, 0, 31.875),
+    '170': (-34.25,  0, 60.25),
+    '16':  (-27.875, 0, 45.25),
+    '381': (-18.75,  0, 19.75),
+    '204': (-21,     0, 73.125),
+    '14':  (-15.25,  0, 60.125),
+    '58':  (-4.375,  0, 36.625),
+    '273': (0,       0, 60.375),
+    '493': (6.25,    0, 75.375),
+    '295': (10.75,   0, 60.25),
+    '427': (17.5,    0, 44.75),
+    '490': (26.5,    0, 74.5),
+    '56':  (30.25,   0, 59.875),
+    '23':  (44.625,  0, 70),
+    '432': (44.25,   0, 35),
+    '337': (57.375,  0, 60.125)
 }
+
+camera_matrix = np.eye(3)
+camera_matrix[0,0] = 706.64790925
+camera_matrix[0,2] = 391.97561153
+camera_matrix[1,1] = 738.94091402
+camera_matrix[1,2] = 285.82410445
+
+dist_coefs = np.zeros((5,1))
+dist_coefs[0] = 0.07060063
+dist_coefs[1] = -0.23243439
+dist_coefs[2] = -0.02683919
+dist_coefs[3] = -0.00194744
+dist_coefs[4] = 0.24594352
 
 #for i in [2,3,4,6,8,10,12,'6-rot']:
 for i in [8]:
@@ -238,11 +265,8 @@ for i in [8]:
         imgs.append([center])
         objs.append([point])
 
-    objs = np.array(objs,dtype=np.float)
-    imgs = np.array(imgs,dtype=np.float)
-
-    camera_matrix = np.eye(3)
-    dist_coefs = np.zeros((5,1))
+    objs = np.array(objs, dtype=np.float)
+    imgs = np.array(imgs, dtype=np.float)
 
     solve = cv2.solvePnPRansac(objs, imgs, camera_matrix, dist_coefs)
     print(solve)
