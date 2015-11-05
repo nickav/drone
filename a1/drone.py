@@ -7,7 +7,7 @@ vehicle = connect('127.0.0.1:14550', await_params=True)
 
 CANVAS_WIDTH_FEET = 18
 CANVAS_HEIGHT_FEET = 9
-API_BASE = '' # TODO replace with API base
+API_BASE = 'http://drone.gotechnica.org' # TODO replace with API base
 PASSWORD = '' # TODO set password
 
 # reset the drops counter
@@ -112,6 +112,9 @@ def feet_to_meters(feet):
 def meters_to_feet(meters):
     FEET_PER_METER = 3.28084
     return meters * FEET_PER_METER
+
+def drop_paint():
+    pass
 
 
 DRONE_Z = feet_to_meters(7)
