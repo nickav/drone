@@ -86,17 +86,18 @@ def locate_xy(image_src, known, out):
         if (closest is None or d > dist):
             closest = o
             dist = d
+        x,y,w,h = pos_rect
 
         # debug stuff
-        #cv2.rectangle(img_color, (x, y), (x + w, y + h), (0,0,255), 3)
-        #cv2.putText(img_color, str(code), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,0,0))
-        #cv2.imwrite(out, img_color)
+        cv2.rectangle(img_color, (x, y), (x + w, y + h), (0,0,255), 3)
+        cv2.putText(img_color, str(code), (x, y), cv2.FONT_HERSHEY_SIMPLEX, 2, (255,0,0))
+        cv2.imwrite(out, img_color)
 
         current_y = float(known[0])/float(size[0]) * float(known[1])
         # 7.5 * (240 / sin(20.705)) / (S_pixel)
         #current_y = 5091.1244048 / float(size[0])
     
-    print closest
+    print(closest)
     dx = np.fabs(rect_center(closest[2])[0] - camera_cx)
     # current_y * dx / (240 / sin(20.705))
 
@@ -123,6 +124,7 @@ def get_object_code(image, rect):
     val = 511 - (binary(image[cy - dy, cx - dx]) * 1 + binary(image[cy - dy, cx]) * 2 + binary(image[cy - dy, cx + dx]) * 4 + \
            binary(image[cy, cx - dx]) * 8 + binary(image[cy, cx]) * 16 + binary(image[cy, cx + dx]) * 32 + \
            binary(image[cy + dy, cx - dx]) * 64 + binary(image[cy + dy, cx]) * 128 + binary(image[cy + dy, cx + dx]) * 256)
+    # TODO: verify all 4 corners are black
     return val if val >= 0 else 0
 
 # returns either 0 or 1 if val is less than mid of max_val or greater
@@ -198,10 +200,51 @@ def distance_to_camera(knownWidth, focalLength, perWidth):
 objects, image = identify_objects('image/12ft.jpg')
 known_dist = 12
 w,h = objects[0][1]
-print "Focal length at", known_dist, "feet is", w, "px"
-for i in [2,3,4,6,8,10,12,'6-rot']:
+print("Focal length at", known_dist, "feet is", w, "px")
+#for i in [2,3,4,6,8,10,12,'6-rot']:
+"""
+for i in ['setup']:
     src = 'image/' + str(i) + 'ft.jpg'
     out = "out/" + str(i) + '.jpg'
-    print "locating", i
+    #print "locating", i
     print locate_xy(src, (known_dist, w), out)
+"""
+
+# inches
+HEIGHT = 61.25
+object_points = {
+    '23': (0, 0, HEIGHT),
+    '337': (-22.1875, 0, HEIGHT),
+    '322': (-31.1875, 0, HEIGHT),
+    '257': (20.375, 0, HEIGHT),
+    '14': (39.5, 0, HEIGHT),
+}
+
+#for i in [2,3,4,6,8,10,12,'6-rot']:
+for i in [8]:
+    src = 'image/' + str(i) + 'ft.jpg'
+    out = "out/" + str(i) + '.jpg'
+    print("locating", i)
+    #locate_xyz(src, (known_dist, w), out)
+
+    objects, image = identify_objects(src)
+    objs = []
+    imgs = []
+    for obj in objects:
+        code, size, rect = obj
+        center = rect_center(rect)
+
+        point = object_points[str(code)]
+        imgs.append([center])
+        objs.append([point])
+
+    objs = np.array(objs,dtype=np.float)
+    imgs = np.array(imgs,dtype=np.float)
+
+    camera_matrix = np.eye(3)
+    dist_coefs = np.zeros((5,1))
+
+    solve = cv2.solvePnPRansac(objs, imgs, camera_matrix, dist_coefs)
+    print(solve)
+    break
 
